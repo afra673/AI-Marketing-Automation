@@ -1,0 +1,30 @@
+INFO:     Started server process [4968]
+INFO:     Waiting for application startup.
+D:\Downloads\ai marketing automation project\backend\server.py:340: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  created_at=datetime.utcnow(),
+D:\Downloads\ai marketing automation project\backend\server.py:341: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  updated_at=datetime.utcnow(),
+D:\Downloads\ai marketing automation project\backend\server.py:349: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  (0, "Summer Kickoff Blog Post",    "blog",             "published", "Welcome to our summer campaign!",      datetime.utcnow() - timedelta(days=20), datetime.utcnow() - timedelta(days=20)),
+D:\Downloads\ai marketing automation project\backend\server.py:350: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  (0, "Twitter Thread: Summer Tips", "social_twitter",   "scheduled", "5 summer marketing tips.",             datetime.utcnow() + timedelta(days=3),  None),
+D:\Downloads\ai marketing automation project\backend\server.py:351: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  (0, "LinkedIn Brand Story",        "social_linkedin",  "review",    "Our journey started with a simple idea.", datetime.utcnow() + timedelta(days=7), None),
+D:\Downloads\ai marketing automation project\backend\server.py:352: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  (1, "Product Launch Email",        "email",            "draft",     "Introducing our newest innovation.",   datetime.utcnow() + timedelta(days=14), None),
+D:\Downloads\ai marketing automation project\backend\server.py:353: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  (1, "Launch Day Newsletter",       "newsletter",       "draft",     "This week in AI Marketing.",           datetime.utcnow() + timedelta(days=21), None),
+D:\Downloads\ai marketing automation project\backend\server.py:354: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  (2, "Holiday Gift Guide Blog",     "blog",             "published", "The ultimate holiday gift guide.",     datetime.utcnow() - timedelta(days=45), datetime.utcnow() - timedelta(days=45)),
+D:\Downloads\ai marketing automation project\backend\server.py:366: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  created_at=datetime.utcnow() - timedelta(days=10),
+D:\Downloads\ai marketing automation project\backend\server.py:376: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  started = datetime.utcnow() - timedelta(hours=i * 3 + 1)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8004 (Press CTRL+C to quit)
+D:\Downloads\ai marketing automation project\backend\server.py:575: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  created_at=datetime.utcnow(),
+D:\Downloads\ai marketing automation project\backend\server.py:576: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  updated_at=datetime.utcnow(),
+D:\Downloads\ai marketing automation project\backend\server.py:639: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  created_at=datetime.utcnow(),

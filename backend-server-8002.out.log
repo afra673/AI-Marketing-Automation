@@ -1,0 +1,8 @@
+[startup] Creating database tables…
+[startup] Admin user already exists: admin@demo.com
+[startup] Ready
+INFO:     127.0.0.1:64251 - "GET /api/v1/campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64250 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64257 - "GET /api/v1/content HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64258 - "POST /api/v1/campaigns HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:64264 - "GET /api/v1/campaigns HTTP/1.1" 500 Internal Server Error

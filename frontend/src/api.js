@@ -1,7 +1,12 @@
-import axios from 'axios'
+﻿import axios from 'axios'
+
+const fallbackBase =
+  typeof window !== 'undefined' && (window.location.port === '5173' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8001/api/v1'
+    : '/api/v1'
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8001/api/v1'
+  baseURL: import.meta.env.VITE_API_BASE_URL || fallbackBase,
 })
 
 api.interceptors.request.use((config) => {
@@ -15,7 +20,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && window.location.pathname !== '/login') {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       window.location.href = '/login'

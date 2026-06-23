@@ -1,0 +1,10 @@
+[startup] Creating database tables…
+[startup] Created admin user: admin@demo.com
+[startup] Seeding demo data…
+[startup] Ready
+INFO:     127.0.0.1:64295 - "GET /api/v1/campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64297 - "GET /api/v1/content HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64300 - "POST /api/v1/campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64301 - "POST /api/v1/content HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64304 - "DELETE /api/v1/campaigns/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64305 - "DELETE /api/v1/content/7 HTTP/1.1" 200 OK

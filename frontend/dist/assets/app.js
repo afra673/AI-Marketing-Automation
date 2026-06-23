@@ -190,6 +190,12 @@ function showCampaignModal(onSuccess) {
         <input id="camp-name" style="margin:4px 0 12px" />
         <label style="color:#8d909c;font-size:13px">Description</label>
         <textarea id="camp-desc" rows="3" style="margin:4px 0 16px"></textarea>
+        <label style="color:#8d909c;font-size:13px">Status</label>
+        <select id="camp-status" style="margin:4px 0 16px">
+          <option value="draft">Draft</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+        </select>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button class="btn-secondary" id="modal-cancel">Cancel</button>
           <button class="btn-primary" id="modal-save">Create Campaign</button>
@@ -206,6 +212,7 @@ function showCampaignModal(onSuccess) {
       body: JSON.stringify({
         name: document.getElementById('camp-name').value,
         description: document.getElementById('camp-desc').value,
+        status: document.getElementById('camp-status').value,
       }),
     });
     root.innerHTML = '';
@@ -235,6 +242,28 @@ async function renderDashboard() {
         ${statCard('Avg Engagement', engagement, 'insights')}
         ${statCard('Active Agents', activeAgents, 'smart_toy')}
       </div>
+      <div class="glass-card" style="padding:20px;margin:24px 0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+          <h3 style="color:#e2e2e8;margin:0">Campaigns</h3>
+          <button class="btn-primary" id="dashboard-new-campaign" style="padding:10px 14px">New Campaign</button>
+        </div>
+        <div class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+          ${campaigns.map(c => `
+            <div class="glass-card" style="padding:16px">
+              <div style="display:flex;justify-content:space-between;gap:12px;align-items:start">
+                <div>
+                  <h4 style="margin:0 0 6px;color:#e2e2e8">${c.name}</h4>
+                  <p style="font-size:12px;color:#8d909c;margin:0 0 10px">${c.description || 'No description provided'}</p>
+                </div>
+                <span class="badge" style="background:#334155">${c.status}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:12px">
+                <span style="font-size:12px;color:#8d909c">${(c.goals || []).length ? c.goals.join(', ') : 'No goals set'}</span>
+                <button class="btn-secondary" data-delete-campaign="${c.id}" style="padding:8px 10px">Delete</button>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>
       <h3 style="color:#e2e2e8;margin-bottom:12px">Agent Status</h3>
       <div class="stat-grid" style="margin-bottom:24px">
         ${agents.map(a => `
@@ -258,6 +287,14 @@ async function renderDashboard() {
             <span style="color:#8d909c">${formatTime(l.started_at)}</span>
           </div>`).join('') || '<p style="color:#8d909c">No activity yet</p>'}
       </div>`;
+    document.getElementById('dashboard-new-campaign').onclick = () => showCampaignModal(renderDashboard);
+    document.querySelectorAll('[data-delete-campaign]').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Delete this campaign and its related content?')) return;
+        await api(`/campaigns/${btn.dataset.deleteCampaign}`, { method: 'DELETE' });
+        renderDashboard();
+      };
+    });
   } catch (e) {
     document.getElementById('page-body').innerHTML = `<div class="error-msg">${e.message}</div>`;
   }
@@ -447,10 +484,13 @@ async function renderContent() {
     if (contentFilters.type) params.set('type', contentFilters.type);
     if (contentFilters.status) params.set('status', contentFilters.status);
     const qs = params.toString() ? '?' + params.toString() : '';
-    const items = await api('/content' + qs);
+    const [items, campaigns] = await Promise.all([
+      api('/content' + qs),
+      api('/campaigns'),
+    ]);
 
     document.getElementById('page-body').innerHTML = `
-      <div style="display:flex;flex-wrap:gap:12px;margin-bottom:20px">
+      <div style="display:flex;flex-wrap:gap:12px;margin-bottom:20px;align-items:center">
         <input id="content-search" placeholder="Search content..." value="${contentFilters.search}" style="flex:1;min-width:180px" />
         <select id="content-type" style="width:auto">
           <option value="">All Types</option>
@@ -467,6 +507,7 @@ async function renderContent() {
           <option value="scheduled">Scheduled</option>
           <option value="published">Published</option>
         </select>
+        <button class="btn-primary" id="content-add-btn" style="padding:10px 14px">Add Content</button>
       </div>
       <div class="card-grid" id="content-grid">
         ${items.length ? items.map(item => contentCard(item)).join('') : '<p style="color:#8d909c">No content found.</p>'}
@@ -474,6 +515,7 @@ async function renderContent() {
 
     document.getElementById('content-type').value = contentFilters.type;
     document.getElementById('content-status').value = contentFilters.status;
+    document.getElementById('content-add-btn').onclick = () => showContentModal(campaigns, renderContent);
     let searchTimer;
     document.getElementById('content-search').oninput = (e) => {
       clearTimeout(searchTimer);
@@ -487,6 +529,13 @@ async function renderContent() {
     });
     document.querySelectorAll('[data-schedule]').forEach(btn => {
       btn.onclick = async () => { await api(`/content/${btn.dataset.schedule}/schedule`, { method: 'POST' }); renderContent(); };
+    });
+    document.querySelectorAll('[data-delete-content]').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Delete this content item?')) return;
+        await api(`/content/${btn.dataset.deleteContent}`, { method: 'DELETE' });
+        renderContent();
+      };
     });
     document.querySelectorAll('[data-expand]').forEach(btn => {
       btn.onclick = () => {
@@ -515,9 +564,78 @@ function contentCard(item) {
       <div style="display:flex;gap:8px">
         <button class="btn-primary" style="flex:1;font-size:12px;padding:8px" data-publish="${item.id}">Publish</button>
         <button class="btn-secondary" style="flex:1" data-schedule="${item.id}">Schedule</button>
+        <button class="btn-secondary" style="padding:8px 10px" data-delete-content="${item.id}">Delete</button>
       </div>
     </div>
   </div>`;
+}
+
+function showContentModal(campaigns, onSuccess) {
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="modal-overlay" id="content-modal-close">
+      <div class="modal" onclick="event.stopPropagation()" style="max-width:720px">
+        <h3 style="margin:0 0 16px;color:#e2e2e8">Add Content</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="color:#8d909c;font-size:13px">Campaign</label>
+            <select id="content-campaign" style="margin:4px 0 12px">
+              <option value="">Auto-select first campaign</option>
+              ${campaigns.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="color:#8d909c;font-size:13px">Content Type</label>
+            <select id="content-type-create" style="margin:4px 0 12px">
+              <option value="blog">Blog</option>
+              <option value="social_twitter">Social Twitter</option>
+              <option value="social_linkedin">Social LinkedIn</option>
+              <option value="email">Email</option>
+              <option value="newsletter">Newsletter</option>
+            </select>
+          </div>
+          <div>
+            <label style="color:#8d909c;font-size:13px">Title</label>
+            <input id="content-title" style="margin:4px 0 12px" />
+          </div>
+          <div>
+            <label style="color:#8d909c;font-size:13px">Status</label>
+            <select id="content-status-create" style="margin:4px 0 12px">
+              <option value="draft">Draft</option>
+              <option value="review">Review</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="published">Published</option>
+            </select>
+          </div>
+          <div style="grid-column:1 / -1">
+            <label style="color:#8d909c;font-size:13px">Body</label>
+            <textarea id="content-body" rows="5" style="margin:4px 0 16px"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn-secondary" id="content-cancel">Cancel</button>
+          <button class="btn-primary" id="content-save">Create Content</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('content-cancel').onclick = () => { root.innerHTML = ''; };
+  document.getElementById('content-modal-close').onclick = (e) => {
+    if (e.target.id === 'content-modal-close') root.innerHTML = '';
+  };
+  document.getElementById('content-save').onclick = async () => {
+    await api('/content', {
+      method: 'POST',
+      body: JSON.stringify({
+        campaign_id: document.getElementById('content-campaign').value || undefined,
+        title: document.getElementById('content-title').value,
+        content_type: document.getElementById('content-type-create').value,
+        status: document.getElementById('content-status-create').value,
+        body: document.getElementById('content-body').value,
+      }),
+    });
+    root.innerHTML = '';
+    if (onSuccess) onSuccess();
+  };
 }
 
 /* ─── ANALYTICS ─── */

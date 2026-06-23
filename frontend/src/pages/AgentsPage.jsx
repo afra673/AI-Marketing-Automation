@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+﻿import { useEffect, useState, useRef } from 'react'
 import { ArrowRight } from 'lucide-react'
 import api from '../api'
 
@@ -32,9 +32,8 @@ export default function AgentsPage() {
     const token = localStorage.getItem('token')
     if (!token) return
 
-    const es = new EventSource(
-      `http://127.0.0.1:8001/api/v1/agents/logs?stream=true&token=${encodeURIComponent(token)}`
-    )
+    const baseURL = api.defaults.baseURL || '/api/v1'
+    const es = new EventSource(`${baseURL}/agents/logs?stream=true&token=${encodeURIComponent(token)}`)
 
     const handleLog = (event) => {
       try {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 import api from '../api'
 
 function StatusDot({ status }) {
@@ -22,8 +23,9 @@ export default function Dashboard() {
   const [campaigns, setCampaigns] = useState([])
   const [recentLogs, setRecentLogs] = useState([])
   const [showModal, setShowModal] = useState(false)
-  const [newCampaign, setNewCampaign] = useState({ name: '', description: '' })
+  const [newCampaign, setNewCampaign] = useState({ name: '', description: '', status: 'draft' })
   const [creating, setCreating] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -61,6 +63,21 @@ export default function Dashboard() {
     }
   }
 
+  const handleDeleteCampaign = async (campaignId) => {
+    const confirmed = window.confirm('Delete this campaign and its related content?')
+    if (!confirmed) return
+    setDeletingId(campaignId)
+    try {
+      await api.delete(`/campaigns/${campaignId}`)
+      const res = await api.get('/campaigns')
+      setCampaigns(res.data)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -68,6 +85,48 @@ export default function Dashboard() {
         <StatCard label="Content Published" value={publishedCount} />
         <StatCard label="Avg Engagement" value={avgEngagement} />
         <StatCard label="Active Agents" value={activeAgents} />
+      </div>
+
+      <div className="bg-slate-800 rounded-lg border border-slate-700 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-slate-200">Campaigns</h3>
+          <button
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+          >
+            <Plus size={16} />
+            New Campaign
+          </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {campaigns.map((campaign) => (
+            <div key={campaign.id} className="bg-slate-900/80 border border-slate-700 rounded-lg p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="font-semibold text-slate-100">{campaign.name}</h4>
+                  <p className="text-xs text-slate-400 mt-1">{campaign.description || 'No description provided'}</p>
+                </div>
+                <span className="px-2 py-0.5 rounded text-xs capitalize bg-slate-700 text-slate-200">{campaign.status}</span>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-500">
+                  Goals: {campaign.goals?.length ? campaign.goals.join(', ') : 'None'}
+                </p>
+                <button
+                  onClick={() => handleDeleteCampaign(campaign.id)}
+                  disabled={deletingId === campaign.id}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:border-red-500 hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  <Trash2 size={14} />
+                  {deletingId === campaign.id ? 'Deleting' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          ))}
+          {campaigns.length === 0 && (
+            <p className="text-slate-400 text-sm">No campaigns yet. Create one to start.</p>
+          )}
+        </div>
       </div>
 
       <div>
@@ -112,8 +171,9 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold mb-4 text-slate-200">Quick Actions</h3>
           <button
             onClick={() => setShowModal(true)}
-            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition-colors"
+            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition-colors inline-flex items-center gap-2"
           >
+            <Plus size={16} />
             Launch New Campaign
           </button>
         </div>
@@ -141,6 +201,18 @@ export default function Dashboard() {
                   rows={3}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
                 />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">Status</label>
+                <select
+                  value={newCampaign.status}
+                  onChange={(e) => setNewCampaign({ ...newCampaign, status: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                </select>
               </div>
               <div className="flex gap-3 justify-end">
                 <button

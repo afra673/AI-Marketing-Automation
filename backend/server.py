@@ -1,76 +1,88 @@
-import os
-<<<<<<< HEAD
-=======
+import argparse
 import asyncio
 import json
-from datetime import datetime, timedelta, date
-from pathlib import Path
-from typing import Optional, List
-
-from fastapi import FastAPI, Depends, HTTPException, status, Request, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
->>>>>>> bf44866 (Final fix)
-import bcrypt
+import os
+import sys
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException
+from datetime import date, datetime, timedelta
+from pathlib import Path
+from typing import Optional
+
+import bcrypt
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, String, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.staticfiles import StaticFiles
+from jose import JWTError, jwt
+from pydantic import BaseModel, Field
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
+from sqlalchemy.pool import StaticPool
 
-<<<<<<< HEAD
-# ── Database Setup ──────────────────────────────────────────────
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
-
-# Fix for Railway PostgreSQL URLs (they use postgres:// but SQLAlchemy needs postgresql://)
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-engine = create_engine(DATABASE_URL)
-=======
-BASE_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = BASE_DIR.parent
+# ---------------------------------------------------------------------------
+# FIX 1: Always resolve paths relative to THIS file, not the CWD.
+#         This means the server works whether you run it from the project
+#         root  (py backend/server.py)  or from inside backend/  (py server.py)
+# ---------------------------------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parent        # …/backend/
+PROJECT_DIR = BASE_DIR.parent                     # …/project-root/
 FRONTEND_DIST = PROJECT_DIR / "frontend" / "dist"
 
-SECRET_KEY = "ai-marketing-secret-key-2024"
+# ---------------------------------------------------------------------------
+# FIX 2: Add BASE_DIR to sys.path so uvicorn's string import "server:app"
+#         succeeds regardless of the working directory.
+# ---------------------------------------------------------------------------
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+SECRET_KEY = os.getenv("SECRET_KEY", "ai-marketing-secret-key-2024")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
-
 security = HTTPBearer(auto_error=False)
 
-# Database setup
-_raw_url = os.environ.get("DATABASE_URL", "")
-if _raw_url.startswith("postgres://"):
-    _raw_url = _raw_url.replace("postgres://", "postgresql://", 1)
 
-if _raw_url and "postgresql" in _raw_url:
-    engine = create_engine(_raw_url)
+def _resolve_runtime_port(default: str = "8001") -> str:
+    if "--port" in sys.argv:
+        idx = sys.argv.index("--port")
+        if idx + 1 < len(sys.argv):
+            return sys.argv[idx + 1]
+    return os.getenv("PORT", default)
+
+# ---------------------------------------------------------------------------
+# Database setup — SQLite in-memory by default (zero config needed)
+# ---------------------------------------------------------------------------
+_database_url = os.getenv("DATABASE_URL", "").strip()
+if _database_url.startswith("postgres://"):
+    _database_url = _database_url.replace("postgres://", "postgresql://", 1)
+
+if _database_url and "postgresql" in _database_url:
+    engine = create_engine(_database_url)
 else:
-    DB_PATH = BASE_DIR / "db.sqlite3"
-    engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+    # FIX 3: Use in-memory SQLite for the self-contained demo server.
+    #        It avoids file-locking issues on Windows and keeps local startup reliable.
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
 
->>>>>>> bf44866 (Final fix)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# ── Models ──────────────────────────────────────────────────────
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    password = Column(String)
+    email = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, default="User", nullable=False)
+    password = Column(String, nullable=False)
     is_admin = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-<<<<<<< HEAD
-# ── Startup: Auto-create tables + seed admin ────────────────────
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-=======
 
 class Campaign(Base):
     __tablename__ = "campaigns"
@@ -132,69 +144,67 @@ class AnalyticsSnapshot(Base):
     content = relationship("ContentPiece", back_populates="analytics")
 
 
-integrations_state = {
-    "hubspot": {"name": "HubSpot", "connected": True, "description": "CMS, CRM & Email"},
-    "buffer": {"name": "Buffer", "connected": False, "description": "Social Media Scheduling"},
-    "google_analytics": {"name": "Google Analytics", "connected": True, "description": "Traffic & Conversions"},
-    "openai": {"name": "OpenAI", "connected": True, "description": "GPT-4o & DALL-E 3"},
-}
-
-agent_runtime_state = {
-    "strategy": {"status": "completed", "last_run": None, "tokens_used": 0},
-    "research": {"status": "completed", "last_run": None, "tokens_used": 0},
-    "writing": {"status": "running", "last_run": None, "tokens_used": 0},
-    "design": {"status": "idle", "last_run": None, "tokens_used": 0},
-    "distribution": {"status": "failed", "last_run": None, "tokens_used": 0},
-}
-
-
+# ---------------------------------------------------------------------------
+# Pydantic schemas
+# ---------------------------------------------------------------------------
 class LoginRequest(BaseModel):
     email: str
     password: str
 
 
-class RegisterRequest(BaseModel):
-    email: str
-    password: str
-    name: str
-
-
-class CampaignCreate(BaseModel):
+class CampaignCreateRequest(BaseModel):
     name: str
     description: str = ""
     status: str = "draft"
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    brand_voice: Optional[dict] = None
-    goals: Optional[list] = None
+    brand_voice: dict = Field(default_factory=dict)
+    goals: list = Field(default_factory=list)
 
 
-class CampaignUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    status: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    brand_voice: Optional[dict] = None
-    goals: Optional[list] = None
-
-
-class ContentUpdate(BaseModel):
-    title: Optional[str] = None
-    content_type: Optional[str] = None
-    status: Optional[str] = None
-    body: Optional[str] = None
-    meta: Optional[dict] = None
+class ContentCreateRequest(BaseModel):
+    campaign_id: Optional[int] = None
+    title: str
+    content_type: str
+    status: str = "draft"
+    body: str = ""
     image_url: Optional[str] = None
     scheduled_at: Optional[str] = None
+    meta: dict = Field(default_factory=dict)
 
 
+# ---------------------------------------------------------------------------
+# In-memory runtime state
+# ---------------------------------------------------------------------------
+integrations_state = {
+    "hubspot":          {"key": "hubspot",          "name": "HubSpot",          "connected": True,  "description": "CMS, CRM & Email",           "last_sync": None},
+    "buffer":           {"key": "buffer",            "name": "Buffer",            "connected": False, "description": "Social Media Scheduling",    "last_sync": None},
+    "google_analytics": {"key": "google_analytics",  "name": "Google Analytics",  "connected": True,  "description": "Traffic & Conversions",      "last_sync": None},
+    "openai":           {"key": "openai",             "name": "OpenAI",            "connected": True,  "description": "GPT-4o & DALL-E 3",          "last_sync": None},
+}
+
+agent_runtime_state = {
+    "strategy":     {"name": "strategy",     "status": "completed", "last_run": None, "tokens_used": 0, "cost_usd": 0.0},
+    "research":     {"name": "research",     "status": "completed", "last_run": None, "tokens_used": 0, "cost_usd": 0.0},
+    "writing":      {"name": "writing",      "status": "running",   "last_run": None, "tokens_used": 0, "cost_usd": 0.0},
+    "design":       {"name": "design",       "status": "idle",      "last_run": None, "tokens_used": 0, "cost_usd": 0.0},
+    "distribution": {"name": "distribution", "status": "failed",    "last_run": None, "tokens_used": 0, "cost_usd": 0.0},
+}
+
+
+# ---------------------------------------------------------------------------
+# DB helpers
+# ---------------------------------------------------------------------------
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
@@ -204,15 +214,10 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-
 def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    payload = dict(data)
+    payload["exp"] = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def get_current_user(
@@ -221,20 +226,29 @@ def get_current_user(
 ):
     if credentials is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    token = credentials.credentials
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        if not email:
             raise HTTPException(status_code=401, detail="Invalid token")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
     user = db.query(User).filter(User.email == email).first()
-    if user is None:
+    if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
 
+def parse_json(value: str, default):
+    try:
+        return json.loads(value or json.dumps(default))
+    except Exception:
+        return default
+
+
+# ---------------------------------------------------------------------------
+# Serialisers
+# ---------------------------------------------------------------------------
 def campaign_to_dict(c: Campaign) -> dict:
     return {
         "id": c.id,
@@ -243,8 +257,8 @@ def campaign_to_dict(c: Campaign) -> dict:
         "status": c.status,
         "start_date": c.start_date.isoformat() if c.start_date else None,
         "end_date": c.end_date.isoformat() if c.end_date else None,
-        "brand_voice": json.loads(c.brand_voice or "{}"),
-        "goals": json.loads(c.goals or "[]"),
+        "brand_voice": parse_json(c.brand_voice, {}),
+        "goals": parse_json(c.goals, []),
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
@@ -258,7 +272,7 @@ def content_to_dict(c: ContentPiece) -> dict:
         "content_type": c.content_type,
         "status": c.status,
         "body": c.body,
-        "meta": json.loads(c.meta or "{}"),
+        "meta": parse_json(c.meta, {}),
         "image_url": c.image_url,
         "scheduled_at": c.scheduled_at.isoformat() if c.scheduled_at else None,
         "published_at": c.published_at.isoformat() if c.published_at else None,
@@ -280,20 +294,13 @@ def agent_log_to_dict(log: AgentLog) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Seeding
+# ---------------------------------------------------------------------------
 def seed_database(db: Session):
-    if db.query(User).filter(User.email == "admin@demo.com").first():
-        return
-
-    user = User(
-        email="admin@demo.com",
-        password_hash=hash_password("password123"),
-        name="Admin User",
-        created_at=datetime.utcnow(),
-    )
-    db.add(user)
-    db.flush()
-
-    campaigns_data = [
+    """Populate the DB with demo data on first run."""
+    campaigns = []
+    for data in [
         {
             "name": "Summer Brand Awareness",
             "description": "Increase brand visibility across social channels during summer season.",
@@ -321,129 +328,134 @@ def seed_database(db: Session):
             "brand_voice": {"tone": "warm", "style": "festive"},
             "goals": ["email conversions", "customer retention"],
         },
-    ]
-
-    campaigns = []
-    for cd in campaigns_data:
-        c = Campaign(
-            name=cd["name"],
-            description=cd["description"],
-            status=cd["status"],
-            start_date=cd["start_date"],
-            end_date=cd["end_date"],
-            brand_voice=json.dumps(cd["brand_voice"]),
-            goals=json.dumps(cd["goals"]),
+    ]:
+        campaign = Campaign(
+            name=data["name"],
+            description=data["description"],
+            status=data["status"],
+            start_date=data["start_date"],
+            end_date=data["end_date"],
+            brand_voice=json.dumps(data["brand_voice"]),
+            goals=json.dumps(data["goals"]),
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )
-        db.add(c)
+        db.add(campaign)
         db.flush()
-        campaigns.append(c)
+        campaigns.append(campaign)
 
-    content_data = [
-        {"campaign_id": campaigns[0].id, "title": "Summer Kickoff Blog Post", "content_type": "blog", "status": "published", "body": "Welcome to our summer campaign!", "scheduled_at": datetime.utcnow() - timedelta(days=20), "published_at": datetime.utcnow() - timedelta(days=20)},
-        {"campaign_id": campaigns[0].id, "title": "Twitter Thread: Summer Tips", "content_type": "social_twitter", "status": "scheduled", "body": "5 summer marketing tips.", "scheduled_at": datetime.utcnow() + timedelta(days=3)},
-        {"campaign_id": campaigns[0].id, "title": "LinkedIn Brand Story", "content_type": "social_linkedin", "status": "review", "body": "Our journey started with a simple idea.", "scheduled_at": datetime.utcnow() + timedelta(days=7)},
-        {"campaign_id": campaigns[1].id, "title": "Product Launch Email", "content_type": "email", "status": "draft", "body": "Introducing our newest innovation.", "scheduled_at": datetime.utcnow() + timedelta(days=14)},
-        {"campaign_id": campaigns[1].id, "title": "Launch Day Newsletter", "content_type": "newsletter", "status": "draft", "body": "This week in AI Marketing.", "scheduled_at": datetime.utcnow() + timedelta(days=21)},
-        {"campaign_id": campaigns[2].id, "title": "Holiday Gift Guide Blog", "content_type": "blog", "status": "published", "body": "The ultimate holiday gift guide.", "scheduled_at": datetime.utcnow() - timedelta(days=45), "published_at": datetime.utcnow() - timedelta(days=45)},
+    content_items = []
+    seed_content = [
+        (0, "Summer Kickoff Blog Post",    "blog",             "published", "Welcome to our summer campaign!",      datetime.utcnow() - timedelta(days=20), datetime.utcnow() - timedelta(days=20)),
+        (0, "Twitter Thread: Summer Tips", "social_twitter",   "scheduled", "5 summer marketing tips.",             datetime.utcnow() + timedelta(days=3),  None),
+        (0, "LinkedIn Brand Story",        "social_linkedin",  "review",    "Our journey started with a simple idea.", datetime.utcnow() + timedelta(days=7), None),
+        (1, "Product Launch Email",        "email",            "draft",     "Introducing our newest innovation.",   datetime.utcnow() + timedelta(days=14), None),
+        (1, "Launch Day Newsletter",       "newsletter",       "draft",     "This week in AI Marketing.",           datetime.utcnow() + timedelta(days=21), None),
+        (2, "Holiday Gift Guide Blog",     "blog",             "published", "The ultimate holiday gift guide.",     datetime.utcnow() - timedelta(days=45), datetime.utcnow() - timedelta(days=45)),
     ]
-
-    content_pieces = []
-    for cd in content_data:
-        cp = ContentPiece(
-            campaign_id=cd["campaign_id"],
-            title=cd["title"],
-            content_type=cd["content_type"],
-            status=cd["status"],
-            body=cd["body"],
+    for campaign_idx, title, content_type, status, body, scheduled_at, published_at in seed_content:
+        piece = ContentPiece(
+            campaign_id=campaigns[campaign_idx].id,
+            title=title,
+            content_type=content_type,
+            status=status,
+            body=body,
             meta=json.dumps({"author": "AI Agent"}),
-            scheduled_at=cd.get("scheduled_at"),
-            published_at=cd.get("published_at"),
+            scheduled_at=scheduled_at,
+            published_at=published_at,
             created_at=datetime.utcnow() - timedelta(days=10),
         )
-        db.add(cp)
+        db.add(piece)
         db.flush()
-        content_pieces.append(cp)
+        content_items.append(piece)
 
-    agent_names = ["strategy", "research", "writing", "design", "distribution"]
-    agent_statuses = ["completed", "completed", "running", "completed", "failed", "completed", "running", "completed", "failed", "completed"]
+    agents = ["strategy", "research", "writing", "design", "distribution"]
+    statuses = ["completed", "completed", "running", "completed", "failed",
+                "completed", "running", "completed", "failed", "completed"]
     for i in range(10):
         started = datetime.utcnow() - timedelta(hours=i * 3 + 1)
-        status_val = agent_statuses[i]
-        completed = started + timedelta(minutes=15) if status_val in ("completed", "failed") else None
-        log = AgentLog(
+        status_value = statuses[i]
+        db.add(AgentLog(
             campaign_id=campaigns[i % 3].id,
-            agent_name=agent_names[i % 5],
-            status=status_val,
+            agent_name=agents[i % 5],
+            status=status_value,
             tokens_used=500 + i * 120,
             cost_usd=round(0.002 * (500 + i * 120), 4),
             started_at=started,
-            completed_at=completed,
-            error_message="Connection timeout to external API" if status_val == "failed" else None,
-        )
-        db.add(log)
+            completed_at=started + timedelta(minutes=15) if status_value in {"completed", "failed"} else None,
+            error_message="Connection timeout to external API" if status_value == "failed" else None,
+        ))
 
     platforms = ["hubspot", "buffer", "email", "social"]
     for day_offset in range(30):
         snap_date = date.today() - timedelta(days=29 - day_offset)
-        for j, cp in enumerate(content_pieces):
-            if (day_offset + j) % 2 == 0:
-                platform = platforms[(day_offset + j) % 4]
-                snap = AnalyticsSnapshot(
-                    content_id=cp.id,
-                    platform=platform,
-                    views=100 + day_offset * 15 + j * 20,
-                    clicks=10 + day_offset * 2 + j * 3,
-                    shares=2 + day_offset + j,
-                    conversions=max(0, day_offset // 5 + j - 1),
+        for idx, piece in enumerate(content_items):
+            if (day_offset + idx) % 2 == 0:
+                db.add(AnalyticsSnapshot(
+                    content_id=piece.id,
+                    platform=platforms[(day_offset + idx) % 4],
+                    views=100 + day_offset * 15 + idx * 20,
+                    clicks=10 + day_offset * 2 + idx * 3,
+                    shares=2 + day_offset + idx,
+                    conversions=max(0, day_offset // 5 + idx - 1),
                     snapshot_date=snap_date,
-                )
-                db.add(snap)
+                ))
 
     db.commit()
 
-    logs = db.query(AgentLog).order_by(AgentLog.started_at.desc()).limit(5).all()
-    for log in logs:
+    recent_logs = db.query(AgentLog).order_by(AgentLog.started_at.desc()).limit(5).all()
+    for log in recent_logs:
         if log.agent_name in agent_runtime_state:
             agent_runtime_state[log.agent_name]["status"] = log.status
-            agent_runtime_state[log.agent_name]["last_run"] = log.started_at.isoformat()
+            agent_runtime_state[log.agent_name]["last_run"] = log.started_at.isoformat() if log.started_at else None
             agent_runtime_state[log.agent_name]["tokens_used"] = log.tokens_used
+            agent_runtime_state[log.agent_name]["cost_usd"] = log.cost_usd
 
 
-FALLBACK_HTML = """<!DOCTYPE html>
-<html>
-<head><title>AI Marketing Automation</title></head>
-<body style="background:#0f172a;color:#f1f5f9;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column">
-<h1>AI Marketing Automation</h1>
-<p>Build the frontend first:</p>
-<code style="background:#1e293b;padding:16px;border-radius:8px;display:block">cd frontend && npm install && npm run build</code>
-<p>Then restart the server.</p>
-</body>
-</html>"""
+def ensure_admin_user(db: Session):
+    admin_email = os.getenv("ADMIN_EMAIL", "admin@demo.com")
+    admin_password = os.getenv("ADMIN_PASSWORD", "password123")
+    existing = db.query(User).filter(User.email == admin_email).first()
+    if not existing:
+        db.add(User(
+            email=admin_email,
+            name="Admin User",
+            password=hash_password(admin_password),
+            is_admin=True,
+        ))
+        db.commit()
+        print(f"[startup] Created admin user: {admin_email}")
+    else:
+        print(f"[startup] Admin user already exists: {admin_email}")
 
-app = FastAPI(title="AI Marketing Automation")
 
-
-@app.on_event("startup")
-def on_startup():
->>>>>>> bf44866 (Final fix)
+# ---------------------------------------------------------------------------
+# App & lifespan
+# ---------------------------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("[startup] Creating database tables…")
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        admin_email = os.getenv("ADMIN_EMAIL", "admin@demo.com")
-        admin_password = os.getenv("ADMIN_PASSWORD", "password123")
-        existing = db.query(User).filter(User.email == admin_email).first()
-        if not existing:
-            hashed = bcrypt.hashpw(admin_password.encode(), bcrypt.gensalt()).decode()
-            db.add(User(email=admin_email, password=hashed, is_admin=True))
-            db.commit()
+        ensure_admin_user(db)
+        if not db.query(Campaign).first():
+            print("[startup] Seeding demo data…")
+            seed_database(db)
+        print("[startup] Ready")
     finally:
         db.close()
     yield
 
-# ── App ─────────────────────────────────────────────────────────
-app = FastAPI(lifespan=lifespan)
+
+app = FastAPI(title="AI Marketing Automation", lifespan=lifespan)
+
+# ---------------------------------------------------------------------------
+# FIX 4: CORS — allow both the Vite dev server (5173) AND the production
+#         server port (8001) so the frontend always reaches the API.
+# ---------------------------------------------------------------------------
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -453,37 +465,345 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── DB Dependency ───────────────────────────────────────────────
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Serve built frontend assets
+if FRONTEND_DIST.exists():
+    assets_dir = FRONTEND_DIST / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
-# ── Schemas ─────────────────────────────────────────────────────
-class LoginRequest(BaseModel):
-    email: str
-    password: str
 
-# ── Routes ──────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# FIX 5: root_html was being *called* inside route handlers even though it
+#         already returns a Response.  Make it a plain helper that returns
+#         the right Response object directly.
+# ---------------------------------------------------------------------------
+def root_html():
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return FileResponse(str(index))
+    return HTMLResponse(
+        "<h1>AI Marketing Automation</h1><p>Frontend not built yet. Run <code>npm run build</code> inside <code>frontend/</code>.</p>",
+        status_code=200,
+    )
+
+
+def normalize_date(value: Optional[str]):
+    if not value:
+        return None
+    return date.fromisoformat(value)
+
+
+def analytics_summary(db: Session):
+    snapshots = db.query(AnalyticsSnapshot).all()
+    daily = []
+    for offset in range(29, -1, -1):
+        day = date.today() - timedelta(days=offset)
+        daily.append({
+            "date": day.isoformat(),
+            "views":  sum(s.views  for s in snapshots if s.snapshot_date == day),
+            "clicks": sum(s.clicks for s in snapshots if s.snapshot_date == day),
+        })
+    return {
+        "total_views":   sum(s.views       for s in snapshots),
+        "total_clicks":  sum(s.clicks      for s in snapshots),
+        "total_shares":  sum(s.shares      for s in snapshots),
+        "conversions":   sum(s.conversions for s in snapshots),
+        "daily_data": daily,
+    }
+
+
+def channel_breakdown(db: Session):
+    snapshots = db.query(AnalyticsSnapshot).all()
+    data = {}
+    for platform in ["hubspot", "buffer", "email", "social"]:
+        ps = [s for s in snapshots if s.platform == platform]
+        data[platform] = {
+            "views":       sum(s.views       for s in ps),
+            "clicks":      sum(s.clicks      for s in ps),
+            "shares":      sum(s.shares      for s in ps),
+            "conversions": sum(s.conversions for s in ps),
+        }
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 @app.get("/")
 def root():
-    return {"status": "AI Marketing Automation API is running"}
+    return root_html()
 
-@app.post("/api/auth/login")
+
+@app.post("/api/v1/auth/login")
 def login(data: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
-    if not user:
+    if not user or not verify_password(data.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    if not bcrypt.checkpw(data.password.encode(), user.password.encode()):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    return {"message": "Login successful", "email": user.email, "is_admin": user.is_admin}
+    token = create_access_token({
+        "sub": user.email,
+        "email": user.email,
+        "name": user.name,
+        "is_admin": user.is_admin,
+    })
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {"id": user.id, "email": user.email, "name": user.name, "is_admin": user.is_admin},
+    }
+
+
+@app.get("/api/v1/me")
+def me(current_user: User = Depends(get_current_user)):
+    return {"id": current_user.id, "email": current_user.email, "name": current_user.name, "is_admin": current_user.is_admin}
+
+
+@app.get("/api/v1/campaigns")
+def list_campaigns(db: Session = Depends(get_db)):
+    return [campaign_to_dict(item) for item in db.query(Campaign).order_by(Campaign.created_at.desc()).all()]
+
+
+@app.post("/api/v1/campaigns")
+def create_campaign(data: CampaignCreateRequest, db: Session = Depends(get_db)):
+    campaign = Campaign(
+        name=data.name,
+        description=data.description,
+        status=data.status,
+        start_date=normalize_date(data.start_date),
+        end_date=normalize_date(data.end_date),
+        brand_voice=json.dumps(data.brand_voice or {}),
+        goals=json.dumps(data.goals or []),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(campaign)
+    db.commit()
+    db.refresh(campaign)
+    return campaign_to_dict(campaign)
+
+
+@app.delete("/api/v1/campaigns/{campaign_id}")
+def delete_campaign(campaign_id: int, db: Session = Depends(get_db)):
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    content_items = db.query(ContentPiece).filter(ContentPiece.campaign_id == campaign_id).all()
+    content_ids = [item.id for item in content_items]
+    if content_ids:
+        db.query(AnalyticsSnapshot).filter(AnalyticsSnapshot.content_id.in_(content_ids)).delete(synchronize_session=False)
+        db.query(ContentPiece).filter(ContentPiece.id.in_(content_ids)).delete(synchronize_session=False)
+    db.query(AgentLog).filter(AgentLog.campaign_id == campaign_id).delete(synchronize_session=False)
+    db.delete(campaign)
+    db.commit()
+    return {"success": True, "deleted_campaign_id": campaign_id}
+
+
+@app.get("/api/v1/content")
+def list_content(
+    search: str = Query(default=""),
+    type:   str = Query(default=""),
+    status: str = Query(default=""),
+    db: Session = Depends(get_db),
+):
+    items = db.query(ContentPiece).order_by(ContentPiece.created_at.desc()).all()
+    if search:
+        q = search.lower()
+        items = [i for i in items if q in i.title.lower() or q in (i.body or "").lower()]
+    if type:
+        items = [i for i in items if i.content_type == type]
+    if status:
+        items = [i for i in items if i.status == status]
+    return [content_to_dict(i) for i in items]
+
+
+@app.post("/api/v1/content")
+def create_content(data: ContentCreateRequest, db: Session = Depends(get_db)):
+    campaign_id = data.campaign_id
+    if campaign_id is None:
+        campaign = db.query(Campaign).order_by(Campaign.created_at.asc()).first()
+        if not campaign:
+            raise HTTPException(status_code=400, detail="Create a campaign first")
+        campaign_id = campaign.id
+    elif not db.get(Campaign, campaign_id):
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    content = ContentPiece(
+        campaign_id=campaign_id,
+        title=data.title,
+        content_type=data.content_type,
+        status=data.status,
+        body=data.body,
+        meta=json.dumps(data.meta or {}),
+        image_url=data.image_url,
+        scheduled_at=datetime.fromisoformat(data.scheduled_at) if data.scheduled_at else None,
+        created_at=datetime.utcnow(),
+    )
+    db.add(content)
+    db.commit()
+    db.refresh(content)
+    return content_to_dict(content)
+
+
+@app.delete("/api/v1/content/{content_id}")
+def delete_content(content_id: int, db: Session = Depends(get_db)):
+    item = db.get(ContentPiece, content_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Content not found")
+    db.query(AnalyticsSnapshot).filter(AnalyticsSnapshot.content_id == content_id).delete(synchronize_session=False)
+    db.delete(item)
+    db.commit()
+    return {"success": True, "deleted_content_id": content_id}
+
+
+@app.post("/api/v1/content/{content_id}/publish")
+def publish_content(content_id: int, db: Session = Depends(get_db)):
+    item = db.get(ContentPiece, content_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Content not found")
+    item.status = "published"
+    item.published_at = datetime.utcnow()
+    db.commit()
+    return content_to_dict(item)
+
+
+@app.post("/api/v1/content/{content_id}/schedule")
+def schedule_content(content_id: int, db: Session = Depends(get_db)):
+    item = db.get(ContentPiece, content_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Content not found")
+    item.status = "scheduled"
+    item.scheduled_at = datetime.utcnow() + timedelta(days=1)
+    db.commit()
+    return content_to_dict(item)
+
+
+@app.get("/api/v1/agents/status")
+def agents_status():
+    return [agent_runtime_state[name] | {"name": name} for name in agent_runtime_state]
+
+
+@app.post("/api/v1/agents/{agent_name}/run")
+def run_agent(agent_name: str, db: Session = Depends(get_db)):
+    if agent_name not in agent_runtime_state:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    agent_runtime_state[agent_name]["status"] = "running"
+    agent_runtime_state[agent_name]["last_run"] = datetime.utcnow().isoformat()
+    agent_runtime_state[agent_name]["tokens_used"] += 250
+    agent_runtime_state[agent_name]["cost_usd"] = round(
+        agent_runtime_state[agent_name]["tokens_used"] * 0.002, 4
+    )
+    campaign = db.query(Campaign).first()
+    db.add(AgentLog(
+        campaign_id=campaign.id if campaign else None,
+        agent_name=agent_name,
+        status="running",
+        tokens_used=agent_runtime_state[agent_name]["tokens_used"],
+        cost_usd=agent_runtime_state[agent_name]["cost_usd"],
+        started_at=datetime.utcnow(),
+    ))
+    db.commit()
+    return agent_runtime_state[agent_name] | {"name": agent_name}
+
+
+@app.get("/api/v1/agents/logs")
+def agents_logs(
+    stream: bool = Query(default=False),
+    token: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    if token:
+        try:
+            jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        except JWTError:
+            pass
+
+    logs = [
+        agent_log_to_dict(item)
+        for item in db.query(AgentLog).order_by(AgentLog.started_at.desc()).limit(100).all()
+    ]
+
+    if not stream:
+        return logs
+
+    async def event_stream():
+        for log in logs:
+            yield f"event: log\ndata: {json.dumps(log)}\n\n"
+            await asyncio.sleep(0.01)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@app.get("/api/v1/analytics/overview")
+def analytics_overview(db: Session = Depends(get_db)):
+    return analytics_summary(db)
+
+
+@app.get("/api/v1/analytics/channels")
+def analytics_channels(db: Session = Depends(get_db)):
+    return channel_breakdown(db)
+
+
+@app.get("/api/v1/integrations")
+def integrations():
+    return list(integrations_state.values())
+
+
+@app.post("/api/v1/integrations/{key}/connect")
+def connect_integration(key: str):
+    if key not in integrations_state:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    integrations_state[key]["connected"] = True
+    integrations_state[key]["last_sync"] = datetime.utcnow().isoformat()
+    return integrations_state[key]
+
+
+@app.post("/api/v1/integrations/{key}/disconnect")
+def disconnect_integration(key: str):
+    if key not in integrations_state:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    integrations_state[key]["connected"] = False
+    return integrations_state[key]
+
 
 @app.get("/api/debug/users")
 def debug_users(db: Session = Depends(get_db)):
-    users = db.query(User).all()
     return [
-        {"id": u.id, "email": u.email, "is_admin": u.is_admin, "password_hashed": bool(u.password)}
-        for u in users
+        {"id": u.id, "email": u.email, "name": u.name, "is_admin": u.is_admin, "password_hashed": bool(u.password)}
+        for u in db.query(User).all()
     ]
+
+
+# ---------------------------------------------------------------------------
+# FIX 6: SPA fallback — must come LAST.  Any unknown path that is NOT an
+#         API route returns the React index.html so client-side routing works.
+# ---------------------------------------------------------------------------
+@app.get("/{path:path}")
+def spa_fallback(path: str):
+    if path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not found")
+    return root_html()
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+def main():
+    parser = argparse.ArgumentParser(description="AI Marketing Automation server")
+    parser.add_argument("--host",   default=os.getenv("HOST", "0.0.0.0"))
+    parser.add_argument("--port",   type=int, default=int(os.getenv("PORT", "8001")))
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+
+    import uvicorn
+
+    # FIX 1 (continued): pass the app *object* directly instead of a string so
+    # uvicorn never needs to import the module by name — works from ANY directory.
+    if args.reload:
+        # --reload requires a string reference; ensure BASE_DIR is on sys.path
+        uvicorn.run("server:app", host=args.host, port=args.port, reload=True)
+    else:
+        uvicorn.run(app, host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()
