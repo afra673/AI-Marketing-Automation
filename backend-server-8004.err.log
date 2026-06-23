@@ -28,3 +28,7 @@ D:\Downloads\ai marketing automation project\backend\server.py:576: DeprecationW
   updated_at=datetime.utcnow(),
 D:\Downloads\ai marketing automation project\backend\server.py:639: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
   created_at=datetime.utcnow(),
+D:\Downloads\ai marketing automation project\backend\server.py:219: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  payload["exp"] = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+D:\Downloads\ai marketing automation project\backend\server.py:756: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  integrations_state[key]["last_sync"] = datetime.utcnow().isoformat()
