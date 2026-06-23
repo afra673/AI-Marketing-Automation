@@ -33,6 +33,8 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 
 security = HTTPBearer(auto_error=False)
 import psycopg2
+os.makedirs("/data", exist_ok=True)
+os.makedirs("/data", exist_ok=True)
 DATABASE_URL = f"sqlite:////data/db.sqlite3"
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
