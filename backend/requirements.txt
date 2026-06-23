@@ -7,3 +7,5 @@ python-multipart==0.0.9
 aiofiles==23.2.1
 sse-starlette==2.1.0
 pydantic==2.7.1
+psycopg2-binary
+
